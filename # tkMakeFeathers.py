@@ -9,8 +9,79 @@ def cShrinkWin(windowToClose, *args):
     cmds.window(windowToClose, e=1, h=20, w=440)
 
 
+def cBakePFX(action, *args):
+	polyPfxList = []
+	pfx = cmds.ls(sl=1, l=1)
+	if not pfx:
+		cmds.textField('tfFeedback', tx='Select a paint effect to convert', e=1)
+
+	pfx = cmds.ls(sl=1, l=1)[0]
+	start = cmds.intField('ifStart', v=1, q=1)
+	end = cmds.intField('ifEnd', v=1, q=1)
+	diff = end - start
+	print diff
 
 
+
+	if diff >= 0 and diff < 101:
+		for f in range(start, end, 1):
+			cmds.textField('tfFeedback', tx=('Baking ... ' + str(f)), e=1)
+			cmds.currentTime(f)
+			cmds.select(pfx)
+			cmds.PaintEffectsToPoly()
+			polyPfxShp = cmds.ls(sl=1, l=1)
+			polyPfx = cmds.listRelatives(p=1) 
+			polyPfx = cmds.rename(polyPfx, 'bakedPfx_' + str(f))
+			cmds.delete(polyPfx, ch=1)
+			polyPfxList.append(polyPfx)
+
+			dag = cmds.listRelatives(polyPfx, p=1)
+			cmds.parent(polyPfx, w=1)
+			cmds.delete(dag) 
+
+		cPlanarUV(polyPfxList)
+
+		if action == 'export':
+			cExportFeathers(polyPfxList)
+		
+		cmds.textField('tfFeedback', tx='Success', e=1)
+
+	if diff <= 0:
+		cmds.textField('tfFeedback', tx='Strange range', e=1)
+	elif diff > 3:
+		cmds.textField('tfFeedback', tx='Max 100 objects alllowed', e=1)
+	
+
+
+def cPlanarUV(polyPfxList, *args):
+	for obj in polyPfxList:
+		cmds.select(obj, r=1)
+		v = cmds.polyEvaluate(obj, v=1)
+		vertices = (str(obj) + '.f[0:' + str(v) + ']')
+		cmds.polyProjection(str(vertices), ch=0, type='Planar', ibd=1, md='z')
+
+
+
+def cExportFeathers(polyPfxList, *args):
+	ws = cmds.workspace(fn=1)
+	newPath = ws + '/scenes/justFeathers' 
+	if os.path.isdir(newPath) == 0:
+		os.mkdir(newPath)				
+
+	if polyPfxList is 'exportSelection':
+		polyPfxList = cmds.ls(sl=1, l=1)
+
+	if len(polyPfxList) < 101:
+		for obj in polyPfxList:
+			obj = obj.split('|')[-1]
+			file = newPath + '/' + obj + '.ma' 
+			cmds.select(obj, r=1)
+			# print file
+			cmds.textField('tfFeedback', tx=file, e=1)
+			cmds.file(file, force=1, typ='mayaAscii', pr=1, es=1)
+
+	else:
+		cmds.textField('tfFeedback', tx='more than 100 objects selected', e=1)
 
 
 
@@ -44,13 +115,25 @@ if cmds.window('win_tkMakefeathersHelper', exists=1):
 
 myWindow = cmds.window('win_tkMakefeathersHelper', t=('xGen Helper ' + ver), s=1, wh=(windowStartHeight, windowStartWidth ))
 cmds.columnLayout(adj=1, bgc=(colGreenD[0], colGreenD[1], colGreenD[2]))
-cmds.frameLayout('flStitchHeadUtils', l='Prep Work', bgc=(colGreen[0], colGreen[1], colGreen[2]), cll=1, cl=0, cc=partial(cShrinkWin, 'win_tkMakefeathersHelper'))
+cmds.frameLayout('flMakeFeathers', l='Make Faethers From PFX', bgc=(colGreen[0], colGreen[1], colGreen[2]), cll=1, cl=0, cc=partial(cShrinkWin, 'win_tkMakefeathersHelper'))
 
-cmds.rowColumnLayout(nc=3, cw=[(1, 180), (2, 180), (3, 80)])
-cmds.button(l='1. Import Guides', c=cImportGuides, bgc=(colGreen[0], colGreen[1], colGreen[2]))
-cmds.button(l='2. Build Gear Rig', bgc=(colGreenD[0], colGreenD[1], colGreenD[2]))
-cmds.button(l='3. Add Locs', c=cAddStitchLocs, bgc=(colGreen[0], colGreen[1], colGreen[2]))
-# cmds.button(l='3. Rename: GRP CTRL JOIN', c=cRenameNodes, bgc=(colGreen[0], colGreen[1], colGreen[2]))
-# cmds.button(l='4. Add "GRUP" at the end', c=cFindEmptyTransforms, bgc=(colGreen[0], colGreen[1], colGreen[2]))
-# cmds.button(l='5. Add Attributes', c=cAddAttributes)
-# cmds.setParent(top=1)
+cmds.columnLayout(adj=1)
+cmds.rowColumnLayout(nc=4, cw=[(1, 140), (2, 60), (3, 60), (4, 140)])
+cmds.button(l='Bake From To', c=partial(cBakePFX, 'bake'), bgc=(colGreen[0], colGreen[1], colGreen[2]))
+cmds.intField('ifStart', v=30)
+cmds.intField('ifEnd', v=34)
+cmds.button(l='Bake And Export', c=partial(cBakePFX, 'export'), bgc=(colRed[0], colRed[1], colRed[2]))
+cmds.setParent('..')
+
+cmds.rowColumnLayout(nc=3, cw=[(1, 140), (2, 260)])
+cmds.button(l='Export to .../scenes/', c=partial(cExportFeathers, 'exportSelection'), bgc=(colRed[0], colRed[1], colRed[2]))
+cmds.textField('tfPath', tx='justFeathers_A', ed=1)
+cmds.setParent('..')
+
+cmds.textField('tfFeedback', tx='', ed=0, bgc=(colGreenD[0], colGreenD[1], colGreenD[2]))
+
+cmds.showWindow(myWindow)
+
+cmds.window(myWindow, w=400, h=50, e=1)
+
+cmds.select('pfxHair1', r=1)
